@@ -33,7 +33,11 @@ export interface TargetAttachArguments {
     connectCommands?: string[];
 }
 
-export interface TargetLaunchArguments extends TargetAttachArguments {
+export interface SimulatorLaunchArguments{
+    machine?: string;
+}
+
+export interface TargetLaunchArguments extends TargetAttachArguments{
     // The executable for the target server to launch (e.g. gdbserver or JLinkGDBServerCLExe),
     // defaults to 'gdbserver --once :0 ${args.program}' (requires gdbserver >= 7.3)
     server?: string;
@@ -48,6 +52,10 @@ export interface TargetLaunchArguments extends TargetAttachArguments {
     serverStartupDelay?: number;
     // Specifies the working directory of gdbserver
     cwd?: string;
+    // Specifies the arguments for launching a simulator
+    simulatorArgs?: any;
+    // Target machine to connect to (defaults to 'spike', ignored if parameters is set)
+    machine?: SimulatorLaunchArguments["machine"];
 }
 
 export interface ImageAndSymbolArguments {
@@ -138,20 +146,31 @@ export class GDBTargetDebugSession extends GDBDebugSession {
         const serverExe =
             target.server !== undefined ? target.server : 'gdbserver';
         const serverCwd = target.cwd !== undefined ? target.cwd : args.cwd;
+        const simulatorArgs= target.simulatorArgs !== undefined ? target.simulatorArgs : null;
+        const machine = simulatorArgs?.machine !== undefined ? simulatorArgs.machine : "spike";
+
+        //create simulator arguments array from simulatorArgs attribute
+        const simulatorArray= ['--machine', machine, '--gdb','tcp::'+target.port,'-S','--nographic']; 
         const serverParams =
             target.serverParameters !== undefined
                 ? target.serverParameters
                 : ['--once', ':0', args.program];
 
+        /* 
+         *  There are two attributes are available in launch.json serverparams and simulatorArgs if simulatorArgs is set 
+         *  then launch the simulator with simulatorArgs else invoke the simulator with the parameters from serverParams.
+         */
+        const serverArgs=simulatorArray !==undefined ? simulatorArray : serverParams;
+
         // Wait until gdbserver is started and ready to receive connections.
         await new Promise<void>((resolve, reject) => {
-            this.gdbserver = spawn(serverExe, serverParams, { cwd: serverCwd });
+            this.gdbserver = spawn(serverExe, serverArgs, { cwd: serverCwd });
             let gdbserverStartupResolved = false;
             let accumulatedStderr = '';
             let checkTargetPort = (_data: any) => {
                 // do nothing by default
             };
-            if (target.port && target.serverParameters) {
+            if (target.port && serverArgs) {
                 setTimeout(
                     () => {
                         gdbserverStartupResolved = true;
