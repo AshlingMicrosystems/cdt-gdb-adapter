@@ -28,6 +28,8 @@ import { GDBBackend } from './GDBBackend';
 import * as mi from './mi';
 import {
     sendDataReadMemoryBytes,
+    sendSymbolVarCommand,
+    sendGlobalVarEvalCommand,
     sendDataDisassemble,
     sendDataWriteMemoryBytes,
 } from './mi/data';
@@ -186,7 +188,24 @@ export class GDBDebugSession extends LoggingDebugSession {
                             : `Encountered a problem executing ${args.command}`;
                     this.sendErrorResponse(response, 1, message);
                 });
-        } else {
+        } else if(command === 'cdt-gdb-adapter/processGlobalVarCommand'){
+
+            this.globalVarRequest(response, args);
+                // .then(() => {
+                //     // response.body = 'Ok';
+                //     this.sendResponse(response);
+                // })
+                // .catch((e) => {
+                //     const message =
+                //         e instanceof Error
+                //             ? e.message
+                //             : `Encountered a problem executing ${args.command}`;
+                //     this.sendErrorResponse(response, 1, message);
+                // });
+        } else if(command === 'cdt-gdb-adapter/evaluateGlobalVarCommand'){
+            this.evaluateGlobalVarRequest(response as DebugProtocol.Response, args.expression);
+        }
+        else {
             return super.customRequest(command, response, args);
         }
     }
@@ -1030,7 +1049,12 @@ export class GDBDebugSession extends LoggingDebugSession {
 
             const frame = this.frameHandles.get(args.frameId);
             if (!frame) {
-                this.sendResponse(response);
+                let reponse1 = {body : {}};
+                reponse1.body = this.frameHandles;
+                response.body = {
+                    result: 'Frame not valid',
+                    variablesReference: 0,
+                };
                 return;
             }
             const stackDepth = await mi.sendStackInfoDepth(this.gdb, {
@@ -1116,6 +1140,18 @@ export class GDBDebugSession extends LoggingDebugSession {
                 err instanceof Error ? err.message : String(err)
             );
         }
+    }
+
+    protected async globalVarRequest(response: DebugProtocol.Response, args: any) {
+        const result = await sendSymbolVarCommand(this.gdb);
+        response.body = result;
+        this.sendResponse(response);
+    }
+
+    protected async evaluateGlobalVarRequest(response: DebugProtocol.Response, expression: String) {
+        const result = await sendGlobalVarEvalCommand(this.gdb, expression);
+        response.body = result;
+        this.sendResponse(response);
     }
 
     /**

@@ -19,6 +19,30 @@ interface MIDataReadMemoryBytesResponse {
         contents: string;
     }>;
 }
+
+interface MIGlobalDataResponse {
+    symbols: Array<{
+        debug: Array<{
+            filename: string;
+            fullname: string;
+            symbols: Array<{
+                line: string;
+                name: string;
+                type: string;
+                description: string;
+            }>;
+        }>;
+    }>;
+}
+
+interface MIGlobalEvalDataResponse {
+    name: string;
+    numchild: string;
+    value: string;
+    type: string;
+    has_more : string;
+}
+
 interface MIDataDisassembleAsmInsn {
     address: string;
     // func-name in MI
@@ -50,6 +74,23 @@ export function sendDataReadMemoryBytes(
 ): Promise<MIDataReadMemoryBytesResponse> {
     return gdb.sendCommand(
         `-data-read-memory-bytes -o ${offset} "${address}" ${size}`
+    );
+}
+
+export function sendSymbolVarCommand(
+    gdb: GDBBackend,
+): Promise<MIGlobalDataResponse> {
+    return gdb.sendCommand(
+        '-symbol-info-variables'
+    );
+}
+
+export function sendGlobalVarEvalCommand(
+    gdb: GDBBackend,
+    expression: String
+): Promise<MIGlobalEvalDataResponse> {
+    return gdb.sendCommand(
+        '-var-create - * ' + expression
     );
 }
 
